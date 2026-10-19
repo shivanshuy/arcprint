@@ -1,0 +1,12 @@
+{
+  "name": "Arcprint",
+  "short_name": "Arcprint",
+  "description": "Blueprint-style sketchpad for software architecture diagrams.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#1e4d8c",
+  "theme_color": "#1e4d8c",
+  "icons": [
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
