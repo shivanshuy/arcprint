@@ -2,6 +2,8 @@ import { LIBRARIES, TEMPLATES, groupsFor, symbolById, symbolsIn } from './librar
 import { LETTERS } from './model.js';
 import { ShapeArt, ToolGlyph } from './glyphs.jsx';
 
+const SWATCHES = ['#f4f1ea', '#1c1915', '#c23b22', '#d97706', '#2f6f4e', '#1d4e89', '#6d28d9'];
+
 const DRAW = [
   { id: 'select', name: 'Select', key: 'V' },
   { id: 'hand', name: 'Pan', key: 'H' },
@@ -42,7 +44,7 @@ export default function Chrome(props) {
   const {
     doc, sheet, theme, tool, setTool, selection, clean, setClean, saveState,
     canUndo, canRedo, onUndo, onRedo, panel, setPanel, pins, onTogglePin,
-    onPatchNode, onPatchEdge, onPatchNodes, onDuplicate, onDelete, onOrder, onLock, onRotate,
+    onPatchNode, onPatchEdge, onPatchNodes, onDuplicate, onDelete, onOrder, onLock, onRotate, onPaint,
     onSheetField, onProjectField, onTheme, onToggleSetting, onLettering, onAddSheet, onPickSheet,
     projects, onOpenProject, onCopyProject, onDeleteProject, confirmId, setConfirmId,
     onNewProject, onTemplate, onOpenClick, shareUrl, onCopyShare, cursor, cam, onZoom, onFit,
@@ -128,6 +130,8 @@ export default function Chrome(props) {
             <button className="btn" onClick={props.onSvg}>SVG</button>
             <button className="btn" onClick={props.onPdf}>PDF</button>
             <button className="btn" onClick={props.onJson}>JSON</button>
+            <button className="btn" title="Export Mermaid" onClick={props.onMermaid}>Mermaid</button>
+            <button className="btn" title="Export PlantUML" onClick={props.onPlant}>PlantUML</button>
           </div>
           <div className="group">
             <button className="btn" onClick={() => setPanel(panel === 'setup' ? null : 'setup')}>Setup</button>
@@ -372,6 +376,7 @@ export default function Chrome(props) {
           onOrder={onOrder}
           onLock={onLock}
           onRotate={onRotate}
+          onPaint={onPaint}
         />
       )}
 
@@ -529,7 +534,51 @@ function symbolsMatching(query, library) {
   ));
 }
 
-function Inspector({ node, edge, count, onPatchNode, onPatchEdge, onPatchNodes, onDuplicate, onDelete, onOrder, onLock, onRotate }) {
+function BendRow({ sharp, onChange }) {
+  return (
+    <div className="seg-row">
+      <span className="caption">Bend</span>
+      <div className="seg">
+        <button type="button" className={sharp ? '' : 'on'} onClick={() => onChange('round')}>Round</button>
+        <button type="button" className={sharp ? 'on' : ''} onClick={() => onChange('sharp')}>Sharp</button>
+      </div>
+    </div>
+  );
+}
+
+function ColorRow({ label, value, onChange }) {
+  return (
+    <div className="seg-row">
+      <span className="caption">{label}</span>
+      <div className="swatches">
+        <button
+          type="button"
+          className={`swatch theme${!value ? ' on' : ''}`}
+          title="Theme color"
+          onClick={() => onChange('')}
+        />
+        {SWATCHES.map((color) => (
+          <button
+            key={color}
+            type="button"
+            className={`swatch${value === color ? ' on' : ''}`}
+            style={{ background: color }}
+            title={color}
+            onClick={() => onChange(color)}
+          />
+        ))}
+        <input
+          type="color"
+          aria-label={`${label} color`}
+          value={/^#[0-9a-fA-F]{6}$/.test(value || '') ? value : '#1c1915'}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </div>
+    </div>
+  );
+}
+
+function Inspector({ node, edge, count, onPatchNode, onPatchEdge, onPatchNodes, onDuplicate, onDelete, onOrder, onLock, onRotate, onPaint }) {
   const target = node || edge;
   return (
     <aside className="panel inspector">
@@ -567,6 +616,9 @@ function Inspector({ node, edge, count, onPatchNode, onPatchEdge, onPatchNodes, 
               ))}
             </div>
           </div>
+          {(edge.route === 'elbow' || edge.route === 'bend') && (
+            <BendRow sharp={edge.corner === 'sharp'} onChange={(corner) => onPatchEdge(edge.id, { corner })} />
+          )}
         </section>
       )}
       {(target || count > 1) && (
@@ -588,6 +640,9 @@ function Inspector({ node, edge, count, onPatchNode, onPatchEdge, onPatchNodes, 
               ))}
             </div>
           </div>
+          {node && node.type === 'arrow' && (node.route === 'elbow' || node.route === 'bend') && (
+            <BendRow sharp={node.corner === 'sharp'} onChange={(corner) => onPatchNode(node.id, { corner })} />
+          )}
           {node && (
             <>
               <div className="seg-row">
@@ -602,12 +657,16 @@ function Inspector({ node, edge, count, onPatchNode, onPatchEdge, onPatchNodes, 
                 <span className="caption">Fill</span>
                 <div className="seg">
                   {['none', 'tint', 'solid'].map((fill) => (
-                    <button key={fill} className={node.fill === fill ? 'on' : ''} onClick={() => onPatchNode(node.id, { fill })}>{fill}</button>
+                    <button key={fill} className={node.fill === fill && !node.fillColor ? 'on' : ''} onClick={() => onPatchNode(node.id, { fill, fillColor: '' })}>{fill}</button>
                   ))}
                 </div>
               </div>
+              {node.type !== 'arrow' && (
+                <ColorRow label="Fill" value={node.fillColor} onChange={(fillColor) => onPaint({ fill: fillColor ? 'solid' : 'none', fillColor })} />
+              )}
             </>
           )}
+          <ColorRow label="Line" value={(node || edge)?.ink || ''} onChange={(ink) => onPaint({ ink })} />
           <div className="seg-row">
             <span className="caption">Dash</span>
             <div className="seg">
@@ -615,15 +674,18 @@ function Inspector({ node, edge, count, onPatchNode, onPatchEdge, onPatchNodes, 
               <button className={target && !target.dashed ? 'on' : ''} onClick={() => (node ? onPatchNode(node.id, { dashed: false }) : edge ? onPatchEdge(edge.id, { dashed: false }) : onPatchNodes({ dashed: false }))}>Off</button>
             </div>
           </div>
-          {count > 1 && (
-            <div className="seg-row">
-              <span className="caption">Fill</span>
-              <div className="seg">
-                {['none', 'tint', 'solid'].map((fill) => (
-                  <button key={fill} onClick={() => onPatchNodes({ fill })}>{fill}</button>
-                ))}
+          {count > 1 && !edge && (
+            <>
+              <div className="seg-row">
+                <span className="caption">Fill</span>
+                <div className="seg">
+                  {['none', 'tint', 'solid'].map((fill) => (
+                    <button key={fill} onClick={() => onPaint({ fill, fillColor: '' })}>{fill}</button>
+                  ))}
+                </div>
               </div>
-            </div>
+              <ColorRow label="Fill" value="" onChange={(fillColor) => onPaint({ fill: fillColor ? 'solid' : 'none', fillColor })} />
+            </>
           )}
         </section>
       )}

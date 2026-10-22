@@ -1,4 +1,4 @@
-import { fontFamily, fontPx, strokePx } from './model.js';
+import { fontFamily, fontPx, hexColor, strokePx } from './model.js';
 import { symbolById } from './library.js';
 
 function common(node) {
@@ -17,11 +17,12 @@ export function ShapeArt({ node, fill, labelAt, lettering, caps, showLabel = tru
   const { w, h } = node;
   const pen = common(node);
   const painted = { ...pen, fill: fill || 'none' };
-  const textFill = kind === 'boundary' && spec?.color ? headerInk(spec.color) : labelFill;
+  const tinted = spec && hexColor(node.fillColor) ? { ...spec, color: hexColor(node.fillColor) } : spec;
+  const textFill = kind === 'boundary' && tinted?.color ? headerInk(tinted.color) : labelFill;
   return (
     <g>
-      {kind === 'badge' && spec ? <Badge w={w} h={h} spec={spec} /> : null}
-      {kind === 'boundary' && spec ? <Boundary w={w} h={h} spec={spec} dashed={node.dashed} /> : null}
+      {kind === 'badge' && tinted ? <Badge w={w} h={h} spec={tinted} /> : null}
+      {kind === 'boundary' && tinted ? <Boundary w={w} h={h} spec={tinted} dashed={node.dashed} /> : null}
       {kind !== 'badge' && kind !== 'boundary' ? drawKind(kind, w, h, painted, pen) : null}
       {showLabel && node.label ? (
         <Label node={node} kind={kind} labelAt={labelAt || spec?.labelAt || 'center'} lettering={lettering} caps={caps} fill={textFill} />

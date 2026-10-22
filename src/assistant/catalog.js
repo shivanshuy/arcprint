@@ -1,7 +1,7 @@
 import { SYMBOLS } from '../library.js';
 import { PACKS } from '../packs.js';
 
-export const CAPABILITIES = 'I can change the theme, stencil, grid, snap, dims, lettering, and connectors, switch tools and sheets, edit the selection, place a shape, add a template, or export. Ask for one of those.';
+export const CAPABILITIES = 'I can change the theme, stencil, grid, snap, dims, lettering, and connectors, switch tools and sheets, edit the selection, place a shape, add a template, or export PNG, SVG, PDF, JSON, Mermaid, and PlantUML. Ask for one of those.';
 
 function action(id, title, phrases, done, run, extra = {}) {
   return { id, kind: 'action', title, phrases, done, run, confirm: Boolean(extra.confirm), confirmText: extra.confirmText || '' };
@@ -239,6 +239,17 @@ export const CARDS = [
     'download the project file',
     'save the project as json',
   ], 'Exported JSON.', (api) => api.exportJson()),
+  action('export.mermaid', 'Export Mermaid', [
+    'export mermaid',
+    'download a mermaid diagram',
+    'save the sheet as mermaid',
+  ], 'Exported Mermaid.', (api) => api.exportMermaid()),
+  action('export.plantuml', 'Export PlantUML', [
+    'export plantuml',
+    'download a plantuml diagram',
+    'save the sheet as plantuml',
+    'export uml',
+  ], 'Exported PlantUML.', (api) => api.exportPlant()),
 
   action('template.three', 'Three-tier template', [
     'add the three tier web template',

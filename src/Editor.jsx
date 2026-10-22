@@ -20,7 +20,7 @@ import {
 import { TEMPLATES } from './library.js';
 import Assistant from './assistant/Assistant.jsx';
 import { deleteProject, loadIndex, loadLast, loadPins, loadProject, savePins, saveProject } from './storage.js';
-import { decodeShare, downloadJson, downloadPng, downloadSvg, encodeShare, printPdf } from './export.js';
+import { decodeShare, downloadJson, downloadMermaid, downloadPlantUml, downloadPng, downloadSvg, encodeShare, printPdf } from './export.js';
 
 export default function Editor() {
   const [doc, setDoc] = useState(() => loadLast());
@@ -300,6 +300,17 @@ export default function Editor() {
     mutateSheet((current) => ({
       ...current,
       nodes: current.nodes.map((node) => (ids.has(node.id) ? { ...node, rot: turn(node.rot, delta) } : node)),
+    }));
+  }
+  function paintSelection(patch) {
+    const ids = new Set(selection);
+    if (!ids.size) return;
+    mutateSheet((current) => ({
+      ...current,
+      nodes: current.nodes.map((node) => (ids.has(node.id) ? { ...node, ...patch } : node)),
+      edges: patch.ink === undefined
+        ? current.edges
+        : current.edges.map((edge) => (ids.has(edge.id) ? { ...edge, ink: patch.ink } : edge)),
     }));
   }
   function patchSelectedNodes(patch) {
@@ -612,6 +623,7 @@ export default function Editor() {
         onOrder={order}
         onLock={toggleLock}
         onRotate={rotateSelection}
+        onPaint={paintSelection}
         onSheetField={(patch) => mutateSheet((current) => ({ ...current, ...patch }))}
         onProjectField={(patch) => replaceDoc({ ...doc, ...patch, updated: Date.now() }, true)}
         onTheme={(next) => replaceDoc({ ...doc, theme: next, updated: Date.now() }, true)}
@@ -667,6 +679,8 @@ export default function Editor() {
           if (!printPdf(svgRef.current, doc)) notify('Allow pop-ups to export PDF');
         }}
         onJson={() => downloadJson(doc)}
+        onMermaid={() => downloadMermaid(doc)}
+        onPlant={() => downloadPlantUml(doc)}
         toast={toast}
         query={query}
         setQuery={setQuery}
@@ -726,6 +740,8 @@ export default function Editor() {
           return null;
         },
         exportJson: () => downloadJson(docRef.current),
+        exportMermaid: () => downloadMermaid(docRef.current),
+        exportPlant: () => downloadPlantUml(docRef.current),
         template: (id) => applyTemplate(id),
         newProject,
         save: () => {

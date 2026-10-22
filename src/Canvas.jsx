@@ -3,6 +3,7 @@ import {
   HANDLE_IDS,
   arrowHead,
   contentBounds,
+  contrastInk,
   curveEndAngle,
   curveStartAngle,
   displayLabel,
@@ -18,6 +19,7 @@ import {
   freeElbowPath,
   geometryPath,
   handlePoint,
+  hexColor,
   hitEdge,
   hitHandle,
   hitNode,
@@ -553,7 +555,7 @@ export default function Canvas({
               const to = nodesById.get(edge.to);
               if (!from || !to) return null;
               const geometry = edgeGeometry(edge, from, to);
-              const path = geometryPath(geometry);
+              const path = geometryPath({ ...geometry, corner: edge.corner });
               const selected = selection.includes(edge.id);
               const angle = geometry.curve ? curveEndAngle(geometry.toSide, to.rot || 0) : endAngle(geometry.points);
               const startAngle = geometry.curve ? curveStartAngle(geometry.fromSide, from.rot || 0) + 180 : endAngle([geometry.points[1], geometry.points[0]]);
@@ -561,14 +563,14 @@ export default function Canvas({
               const start = geometry.points[0];
               const mid = midpoint(geometry);
               return (
-                <g key={edge.id} style={{ color: selected ? theme.accent : theme.ink }}>
+                <g key={edge.id} style={{ color: hexColor(edge.ink) || (selected ? theme.accent : theme.ink) }}>
                   <path
                     d={path}
                     fill="none"
                     stroke="currentColor"
                     strokeWidth={strokePx(edge.weight) + (selected ? 1.25 : 0)}
                     strokeDasharray={edge.dashed ? '7 4' : undefined}
-                    strokeLinejoin="round"
+                    strokeLinejoin={edge.corner === 'sharp' ? 'miter' : 'round'}
                     vectorEffect="non-scaling-stroke"
                   />
                   {edge.arrow !== 'none' && (
@@ -582,7 +584,7 @@ export default function Canvas({
                       x={mid.x}
                       y={mid.y}
                       textAnchor="middle"
-                      fill={theme.ink}
+                      fill={hexColor(edge.ink) || theme.ink}
                       stroke={theme.paper}
                       strokeWidth={4}
                       paintOrder="stroke"
@@ -790,14 +792,16 @@ function pointerOnShape(node, x, y) {
 }
 
 function NodeView({ node, theme, settings, selected, hover, cam, hideLabel, showPorts, showDims }) {
-  const fill = node.fill === 'solid' ? theme.ink : node.fill === 'tint' ? theme.tint : 'none';
-  const labelFill = node.fill === 'solid' ? theme.paper : theme.ink;
+  const customFill = hexColor(node.fillColor);
+  const customInk = hexColor(node.ink);
+  const fill = customFill || (node.fill === 'solid' ? theme.ink : node.fill === 'tint' ? theme.tint : 'none');
+  const labelFill = customFill ? contrastInk(customFill) : node.fill === 'solid' ? theme.paper : (customInk || theme.ink);
   return (
-    <g transform={`translate(${node.x} ${node.y}) rotate(${node.rot || 0} ${node.w / 2} ${node.h / 2})`} style={{ color: theme.ink }} opacity={node.id === '__draft' ? 0.8 : 1}>
+    <g transform={`translate(${node.x} ${node.y}) rotate(${node.rot || 0} ${node.w / 2} ${node.h / 2})`} style={{ color: customInk || theme.ink }} opacity={node.id === '__draft' ? 0.8 : 1}>
       {node.type === 'arrow' ? (
         <g>
           {node.route === 'elbow' || node.route === 'bend' ? (
-            <path d={node.route === 'bend' ? freeBendPath(node.w, node.h) : freeElbowPath(node.w, node.h)} fill="none" stroke="currentColor" strokeWidth={strokePx(node.weight)} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+            <path d={node.route === 'bend' ? freeBendPath(node.w, node.h, node.corner === 'sharp' ? 0 : 16) : freeElbowPath(node.w, node.h, node.corner === 'sharp' ? 0 : 16)} fill="none" stroke="currentColor" strokeWidth={strokePx(node.weight)} strokeLinejoin={node.corner === 'sharp' ? 'miter' : 'round'} vectorEffect="non-scaling-stroke" />
           ) : (
             <line x1={0} y1={0} x2={node.w} y2={node.h} stroke="currentColor" strokeWidth={strokePx(node.weight)} vectorEffect="non-scaling-stroke" />
           )}

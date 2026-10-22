@@ -186,10 +186,13 @@ function normalizeNode(node) {
     weight: node.weight || 'm',
     text: node.text || 'm',
     fill: node.fill || 'none',
+    fillColor: hexColor(node.fillColor),
+    ink: hexColor(node.ink),
     dashed: Boolean(node.dashed),
     locked: Boolean(node.locked),
     rot: turn(node.rot, 0),
     route: node.type === 'arrow' && (node.route === 'elbow' || node.route === 'bend') ? node.route : undefined,
+    corner: node.type === 'arrow' && node.corner === 'sharp' ? 'sharp' : undefined,
     head: node.type === 'arrow' && node.head === 'none' ? 'none' : undefined,
   };
 }
@@ -204,11 +207,26 @@ function normalizeEdge(edge) {
     fromAt: Number.isFinite(Number(edge.fromAt)) ? Number(edge.fromAt) : 0.5,
     toAt: Number.isFinite(Number(edge.toAt)) ? Number(edge.toAt) : 0.5,
     route: ROUTES.includes(edge.route) ? edge.route : 'elbow',
+    corner: edge.corner === 'sharp' ? 'sharp' : 'round',
     arrow: edge.arrow || 'end',
     label: edge.label || '',
     weight: edge.weight || 'm',
+    ink: hexColor(edge.ink),
     dashed: Boolean(edge.dashed),
   };
+}
+
+export function hexColor(value) {
+  return /^#[0-9a-fA-F]{6}$/.test(value || '') ? value.toLowerCase() : '';
+}
+
+export function contrastInk(color) {
+  const n = Number.parseInt(String(color).slice(1), 16);
+  if (!Number.isFinite(n)) return '#1a1a1a';
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? '#1a1a1a' : '#ffffff';
 }
 
 export function turn(rot, delta) {
@@ -323,25 +341,25 @@ export function geometryPath(geometry) {
     const c2 = nudge(end, toSide, span);
     return `M ${start.x} ${start.y} C ${c1.x} ${c1.y} ${c2.x} ${c2.y} ${end.x} ${end.y}`;
   }
-  if (points.length < 3) return points.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ');
+  if (points.length < 3 || geometry.corner === 'sharp') return points.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ');
   return roundedPolyline(points, 16);
 }
 
-export function freeBendPath(w, h) {
+export function freeBendPath(w, h, radius = 16) {
   return roundedPolyline([
     { x: 0, y: 0 },
     { x: w, y: 0 },
     { x: w, y: h },
-  ], 16);
+  ], radius);
 }
 
-export function freeElbowPath(w, h) {
+export function freeElbowPath(w, h, radius = 16) {
   return roundedPolyline([
     { x: 0, y: 0 },
     { x: w / 2, y: 0 },
     { x: w / 2, y: h },
     { x: w, y: h },
-  ], 16);
+  ], radius);
 }
 
 function roundedPolyline(points, radius) {
