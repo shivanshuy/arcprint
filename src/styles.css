@@ -761,6 +761,52 @@ textarea:focus-visible {
  line-height: 1.5;
  color: var(--muted);
 }
+.panel.mermaid-panel {
+ top: var(--pal-top);
+ left: auto;
+ right: 40px;
+ width: min(400px, calc(100% - 196px));
+ max-height: calc(100% - var(--pal-top) - 48px);
+ z-index: 5;
+}
+.panel.mermaid-panel.moved { max-height: calc(100% - 16px); }
+.panel.mermaid-panel.dragging { user-select: none; }
+.panel.mermaid-panel header.drag-bar {
+ cursor: grab;
+ align-items: center;
+ touch-action: none;
+}
+.panel.mermaid-panel.dragging header.drag-bar { cursor: grabbing; }
+.mermaid-body {
+ display: flex;
+ flex-direction: column;
+ gap: 8px;
+ padding: 10px 12px 12px;
+ min-height: 0;
+}
+.mermaid-body .lead { padding: 0; }
+.mermaid-view {
+ min-height: 140px;
+ max-height: 240px;
+ overflow: auto;
+ padding: 10px;
+ background: #f6f4ee;
+ border: 1px solid var(--line);
+ color: #1c1915;
+}
+.mermaid-view.err { background: var(--paper); }
+.mermaid-view svg { display: block; max-width: 100%; height: auto; }
+.mermaid-body textarea.code {
+ min-height: 100px;
+ max-height: 160px;
+}
+.mermaid-body footer {
+ display: flex;
+ gap: 8px;
+ justify-content: flex-end;
+ padding: 0;
+ border: 0;
+}
 .panel.share-panel,
 .panel.incoming { width: min(460px, calc(100% - 220px)); }
 .panel.projects-panel { width: min(560px, calc(100% - 220px)); }
@@ -1177,6 +1223,10 @@ button.cell:hover { background: var(--hover); }
  left: 124px;
  max-height: calc(100% - 32px);
 }
+.app.clean .panel.mermaid-panel {
+ left: auto;
+ right: 16px;
+}
 .app.clean .toast { top: 16px; }
 /* A selection opens the inspector in clean mode too, so labels and styles stay editable. */
 .app.clean .inspector {
@@ -1235,10 +1285,17 @@ button.cell:hover { background: var(--hover); }
  right: 40px;
  width: auto;
 }
+.app.tiny .panel.mermaid-panel {
+ left: auto;
+ right: 40px;
+ width: min(400px, calc(100% - 80px));
+}
 @media (max-width: 760px) {
  .keys { columns: 1; }
 }
 .app.tiny.clean .panel.float { left: 16px; right: 16px; }
+.app.tiny.clean .panel.mermaid-panel { left: auto; right: 16px; }
+.app.preview-open .inspector { visibility: hidden; }
 
 .palette button.caption { border: none; background: transparent; cursor: pointer; text-align: left; width: 100%; font: inherit; color: inherit; }
 
@@ -1382,26 +1439,5 @@ button.cell:hover { background: var(--hover); }
   cursor: pointer;
 }
 .style-pick button.on { background: var(--ink); color: var(--paper); }
-.samples {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0 0 16px;
-}
-.samples .caption {
-  font: inherit;
-  color: inherit;
-}
-.samples select {
-  width: 100%;
-  min-height: 28px;
-  padding: 4px 2px;
-  border: 1px solid var(--ink);
-  background: var(--paper);
-  color: inherit;
-  font: inherit;
-  letter-spacing: 0.04em;
-  cursor: pointer;
-}
 aside.palette { overflow-y: auto; }
 

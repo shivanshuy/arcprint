@@ -1,4 +1,4 @@
-import { toMermaid, toPlantUml } from './diagramText.js';
+import { mermaidOutput, plantUmlOutput } from './diagramText.js';
 import { THEMES, activeSheet, contentBounds } from './model.js';
 
 export function downloadBlob(blob, filename) {
@@ -86,12 +86,12 @@ export function downloadJson(doc) {
 
 export function downloadMermaid(doc) {
   const sheet = activeSheet(doc);
-  downloadBlob(new Blob([toMermaid(doc)], { type: 'text/plain;charset=utf-8' }), sheetFilename(doc, sheet, 'mmd'));
+  downloadBlob(new Blob([mermaidOutput(doc)], { type: 'text/plain;charset=utf-8' }), sheetFilename(doc, sheet, 'mmd'));
 }
 
 export function downloadPlantUml(doc) {
   const sheet = activeSheet(doc);
-  downloadBlob(new Blob([toPlantUml(doc)], { type: 'text/plain;charset=utf-8' }), sheetFilename(doc, sheet, 'puml'));
+  downloadBlob(new Blob([plantUmlOutput(doc)], { type: 'text/plain;charset=utf-8' }), sheetFilename(doc, sheet, 'puml'));
 }
 
 export function printPdf(svg, doc) {

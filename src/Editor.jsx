@@ -20,7 +20,8 @@ import {
 import { TEMPLATES } from './library.js';
 import Assistant from './assistant/Assistant.jsx';
 import { deleteProject, loadIndex, loadLast, loadPins, loadProject, savePins, saveProject } from './storage.js';
-import { decodeShare, downloadJson, downloadMermaid, downloadPlantUml, downloadPng, downloadSvg, encodeShare, printPdf } from './export.js';
+import { DIAGRAM_FILE_ACCEPT, detectDiagram, projectFromText } from './diagramImport.js';
+import { decodeShare, downloadJson, downloadPng, downloadSvg, encodeShare, printPdf } from './export.js';
 
 export default function Editor() {
   const [doc, setDoc] = useState(() => loadLast());
@@ -265,7 +266,14 @@ export default function Editor() {
   function mutateSheet(fn, record = true) {
     setDoc((prev) => {
       if (record) pushHistory(prev);
-      return patchSheet(prev, prev.active, fn);
+      return patchSheet(prev, prev.active, (current) => {
+        const next = fn(current);
+        if (!next?.source) return next;
+        if (next.nodes !== current.nodes || next.edges !== current.edges) {
+          return { ...next, source: undefined };
+        }
+        return next;
+      });
     });
     setPreview(null);
   }
@@ -520,20 +528,39 @@ export default function Editor() {
     setPanel(null);
   }
 
+  function adoptIncoming(text, name) {
+    const next = saveProject(projectFromText(text, name));
+    setDoc(next);
+    setProjects(loadIndex());
+    hist.current = { past: [], future: [] };
+    setSelection([]);
+    setPreview(null);
+    setPanel(null);
+    setTool('select');
+    setCam(fitCamera(activeSheet(next), size, clean));
+    const kind = detectDiagram(text, name);
+    if (kind === 'mermaid') notify('Opened Mermaid as shapes');
+    else if (kind === 'plantuml') notify('Opened PlantUML as shapes');
+    else if (kind === 'markdown') notify('Opened diagrams from markdown');
+    else notify('Opened project');
+  }
+
   function onFile(event) {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    file.text().then((text) => {
-      const raw = JSON.parse(text);
-      if (!isProject(raw)) throw new Error('bad');
-      const next = saveProject(normalizeProject({ ...raw, id: uid() }));
-      setDoc(next);
-      setProjects(loadIndex());
-      hist.current = { past: [], future: [] };
-      setSelection([]);
-      notify('Opened project');
-    }).catch(() => notify('That file is not an Arcprint project'));
+    file.text().then((text) => adoptIncoming(text, file.name)).catch((error) => {
+      notify(error?.message || 'That file is not JSON, Mermaid, or PlantUML');
+    });
+  }
+
+  function onDropFile(event) {
+    event.preventDefault();
+    const file = event.dataTransfer?.files?.[0];
+    if (!file) return;
+    file.text().then((text) => adoptIncoming(text, file.name)).catch((error) => {
+      notify(error?.message || 'That file is not JSON, Mermaid, or PlantUML');
+    });
   }
 
   function onLogoFile(event) {
@@ -568,7 +595,14 @@ export default function Editor() {
   const rulerRows = Array.from({ length: Math.max(3, Math.round((win.h - 56) / 210)) }, (_, i) => String(i + 1));
 
   return (
-    <div className={`app${clean ? ' clean' : ''}${tiny ? ' tiny' : ''}`} style={vars}>
+    <div
+      className={`app${clean ? ' clean' : ''}${tiny ? ' tiny' : ''}${panel === 'mermaid' || panel === 'plantuml' ? ' preview-open' : ''}`}
+      style={vars}
+      onDragOver={(event) => {
+        if (event.dataTransfer?.types?.includes('Files')) event.preventDefault();
+      }}
+      onDrop={onDropFile}
+    >
       <div className="sheet-area">
         <Canvas
           svgRef={svgRef}
@@ -679,8 +713,9 @@ export default function Editor() {
           if (!printPdf(svgRef.current, doc)) notify('Allow pop-ups to export PDF');
         }}
         onJson={() => downloadJson(doc)}
-        onMermaid={() => downloadMermaid(doc)}
-        onPlant={() => downloadPlantUml(doc)}
+        onMermaid={() => setPanel(panel === 'mermaid' ? null : 'mermaid')}
+        onPlant={() => setPanel(panel === 'plantuml' ? null : 'plantuml')}
+        onCopied={notify}
         toast={toast}
         query={query}
         setQuery={setQuery}
@@ -740,8 +775,14 @@ export default function Editor() {
           return null;
         },
         exportJson: () => downloadJson(docRef.current),
-        exportMermaid: () => downloadMermaid(docRef.current),
-        exportPlant: () => downloadPlantUml(docRef.current),
+        exportMermaid: () => {
+          setPanel('mermaid');
+          return null;
+        },
+        exportPlant: () => {
+          setPanel('plantuml');
+          return null;
+        },
         template: (id) => applyTemplate(id),
         newProject,
         save: () => {
@@ -842,7 +883,7 @@ export default function Editor() {
           setTool(toolId);
         },
       }} />
-      <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={onFile} />
+      <input ref={fileRef} type="file" accept={DIAGRAM_FILE_ACCEPT} hidden onChange={onFile} />
       <input ref={logoRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden onChange={onLogoFile} />
     </div>
   );

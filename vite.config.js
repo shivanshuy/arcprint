@@ -21,7 +21,7 @@ export default defineConfig({
     ],
   },
   optimizeDeps: {
-    exclude: ['@xenova/transformers', '@huggingface/transformers', 'open-jev'],
+    exclude: ['@xenova/transformers', '@huggingface/transformers', 'open-jev', '@plantuml/core'],
   },
   assetsInclude: ['**/*.wasm'],
 });

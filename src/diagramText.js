@@ -120,6 +120,28 @@ function direction(start, end) {
   return dy >= 0 ? 'down' : 'up';
 }
 
+function layoutFlow(nodes, edges) {
+  const shapes = nodes.filter((node) => node && node.type !== 'arrow');
+  if (!shapes.length) return 'LR';
+  const byId = new Map(shapes.map((node) => [node.id, node]));
+  let across = 0;
+  let down = 0;
+  for (const edge of edges) {
+    const from = byId.get(edge.from);
+    const to = byId.get(edge.to);
+    if (!from || !to) continue;
+    const a = boxOf(from);
+    const b = boxOf(to);
+    const dx = (b.x + b.w / 2) - (a.x + a.w / 2);
+    const dy = (b.y + b.h / 2) - (a.y + a.h / 2);
+    if (Math.abs(dx) >= Math.abs(dy)) across += 1;
+    else down += 1;
+  }
+  if (across !== down) return across > down ? 'LR' : 'TB';
+  const bounds = contentBounds(shapes);
+  return bounds.w >= bounds.h ? 'LR' : 'TB';
+}
+
 function parentsOf(nodes) {
   const frames = nodes.filter(isFrame);
   const map = new Map();
@@ -178,10 +200,10 @@ function mermaidWrap(kind, label) {
 
 function mermaidToken(node, id, spec, label, linked) {
   if (node.type === 'arrow') {
-    if (node.head === 'none') return `${id}["${label}"]`;
+    if (node.head === 'none') return `${id}["${label === ' ' ? 'line' : label}"]`;
     const points = arrowPoints(node);
     const dir = points.length > 1 ? direction(points[0], points[points.length - 1]) || 'right' : 'right';
-    return `${id}<["${label}"]>(${dir})`;
+    return `${id}<["${label === ' ' ? '   ' : label}"]>(${dir})`;
   }
   let kind = visualKind(node, spec);
   if (kind === 'diamond' && linked) kind = 'hex';
@@ -295,7 +317,8 @@ function mermaidItems(parentId, ctx) {
 function emitMermaidItem(item, span, indent, lines, ctx) {
   const pad = '  '.repeat(indent);
   if (!item.composite) {
-    lines.push(`${pad}${item.token}${span > 1 ? `:${span}` : ''}`);
+    const arrow = item.node.type === 'arrow' && item.node.head !== 'none';
+    lines.push(`${pad}${item.token}${!arrow && span > 1 ? `:${span}` : ''}`);
     return;
   }
   lines.push(`${pad}block:${item.mid}["${item.label}"]:${span}`);
@@ -343,34 +366,140 @@ function innerBox(frame) {
   };
 }
 
+function mermaidNote(sheet) {
+  return `%% ${sheet.code || ''} ${sheet.title || ''}`.trim();
+}
+
+function nearestNode(nodes, point) {
+  let best = null;
+  let bestD = Infinity;
+  for (const node of nodes) {
+    const box = boxOf(node);
+    const x = Math.min(Math.max(point.x, box.x), box.x + box.w);
+    const y = Math.min(Math.max(point.y, box.y), box.y + box.h);
+    const d = Math.hypot(point.x - x, point.y - y);
+    if (d < bestD) {
+      bestD = d;
+      best = node;
+    }
+  }
+  return best;
+}
+
+function extraEdgesFromArrows(nodes, edges) {
+  const shapes = nodes.filter((node) => node.type !== 'arrow');
+  const seen = new Set(edges.map((edge) => `${edge.from}->${edge.to}`));
+  const extra = [];
+  for (const node of nodes) {
+    if (node.type !== 'arrow' || node.head === 'none') continue;
+    const points = arrowPoints(node);
+    if (points.length < 2 || !shapes.length) continue;
+    const from = nearestNode(shapes, points[0]);
+    const to = nearestNode(shapes, points[points.length - 1]);
+    if (!from || !to || from.id === to.id) continue;
+    const key = `${from.id}->${to.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    extra.push({
+      from: from.id,
+      to: to.id,
+      label: node.label,
+      dashed: node.dashed,
+      arrow: 'end',
+    });
+  }
+  return extra;
+}
+
+function emitFlowchart(parentId, indent, lines, ctx) {
+  const pad = '  '.repeat(indent);
+  for (const item of mermaidItems(parentId, ctx)) {
+    if (item.composite) {
+      lines.push(`${pad}subgraph ${item.mid}["${item.label}"]`);
+      emitFlowchart(item.node.id, indent + 1, lines, ctx);
+      lines.push(`${pad}end`);
+      continue;
+    }
+    lines.push(`${pad}${item.token}`);
+  }
+}
+
+export function toMermaidFlow(doc) {
+  const sheet = activeSheet(doc);
+  const theme = themeOf(doc);
+  const settings = doc.settings || {};
+  const nodes = liveNodes(sheet);
+  const drawn = liveEdges(sheet);
+  const edges = [...drawn, ...extraEdgesFromArrows(nodes, drawn)];
+  const shapes = nodes.filter((node) => node.type !== 'arrow');
+  const note = mermaidNote(sheet);
+  if (!shapes.length) return `${note}\nflowchart LR\n  empty["Empty sheet"]\n`;
+  const ids = new Map(shapes.map((node, index) => [node.id, `n${index}`]));
+  const parents = parentsOf(shapes);
+  const linked = new Set(edges.flatMap((edge) => [edge.from, edge.to]));
+  const ctx = { nodes: shapes, parents, ids, settings, linked, wrappers: [] };
+  const flow = layoutFlow(shapes, edges);
+  const lines = [note, `flowchart ${flow}`];
+  emitFlowchart(null, 1, lines, ctx);
+  for (const edge of edges) {
+    const from = ids.get(edge.from);
+    const to = ids.get(edge.to);
+    if (!from || !to) continue;
+    const label = mermaidText(displayLabel(edge.label, settings));
+    lines.push(`  ${mermaidLink(from, to, edge, label === ' ' ? '' : label)}`);
+  }
+  for (const node of shapes) {
+    lines.push(`  style ${ids.get(node.id)} ${nodeStyle(node, symbolById(node.type), theme)}`);
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+export function mermaidDrafts(doc) {
+  const sheet = activeSheet(doc);
+  const original = sheet.source?.kind === 'mermaid' ? String(sheet.source.text || '').replace(/\r\n/g, '\n').trim() : '';
+  return {
+    original,
+    flowchart: toMermaidFlow(doc),
+    block: toMermaidBlock(doc),
+  };
+}
+
+export function mermaidOutput(doc) {
+  const drafts = mermaidDrafts(doc);
+  return drafts.original || drafts.flowchart;
+}
+
+export function plantUmlDrafts(doc) {
+  const sheet = activeSheet(doc);
+  const original = sheet.source?.kind === 'plantuml' ? String(sheet.source.text || '').replace(/\r\n/g, '\n').trim() : '';
+  return {
+    original,
+    canvas: toPlantUml(doc),
+  };
+}
+
+export function plantUmlOutput(doc) {
+  const drafts = plantUmlDrafts(doc);
+  return drafts.original || drafts.canvas;
+}
+
 export function toMermaid(doc) {
+  return mermaidOutput(doc);
+}
+
+export function toMermaidBlock(doc) {
   const sheet = activeSheet(doc);
   const theme = themeOf(doc);
   const settings = doc.settings || {};
   const nodes = liveNodes(sheet);
   const edges = liveEdges(sheet);
-  const font = fontName(settings);
-  const init = `%%{init: ${JSON.stringify({
-    theme: 'base',
-    themeVariables: {
-      background: theme.paper,
-      primaryColor: theme.paper,
-      primaryTextColor: theme.ink,
-      primaryBorderColor: theme.ink,
-      lineColor: theme.ink,
-      fontFamily: font,
-    },
-  })}}%%`;
-  if (!nodes.length) return `${init}\nblock\n  columns 1\n  space\n`;
+  const note = mermaidNote(sheet);
+  if (!nodes.length) return `${note}\nblock-beta\n  columns 1\n  space\n`;
   const ids = new Map(nodes.map((node, index) => [node.id, `n${index}`]));
   const parents = parentsOf(nodes);
   const linked = new Set(edges.flatMap((edge) => [edge.from, edge.to]));
   const ctx = { nodes, parents, ids, settings, linked, wrappers: [] };
-  const lines = [
-    init,
-    `%% ${sheet.code || ''} ${sheet.title || ''}`.trim(),
-    'block',
-  ];
+  const lines = [note, 'block-beta'];
   emitMermaid(mermaidItems(null, ctx), contentBounds(nodes), 1, lines, ctx);
   for (const edge of edges) {
     const from = ids.get(edge.from);
@@ -423,28 +552,44 @@ function pumlShape(node, spec) {
   return map[kind] || 'rectangle';
 }
 
-function sameBand(box, row) {
-  const overlap = Math.min(box.y + box.h, row.bottom) - Math.max(box.y, row.top);
+function sameSpan(box, band, axis) {
+  const start = axis === 'x' ? box.x : box.y;
+  const size = axis === 'x' ? box.w : box.h;
+  const overlap = Math.min(start + size, band.end) - Math.max(start, band.start);
   if (overlap <= 0) return false;
-  return overlap > Math.min(box.h, row.bottom - row.top) * 0.4;
+  return overlap > Math.min(size, band.end - band.start) * 0.4;
 }
 
-function bandRows(items) {
-  const rows = [];
-  const sorted = [...items].sort((a, b) => boxOf(a).y - boxOf(b).y || boxOf(a).x - boxOf(b).x);
+function layoutBands(items, axis) {
+  const bands = [];
+  const sorted = [...items].sort((a, b) => {
+    const left = boxOf(a);
+    const right = boxOf(b);
+    return axis === 'x'
+      ? (left.x - right.x || left.y - right.y)
+      : (left.y - right.y || left.x - right.x);
+  });
   for (const item of sorted) {
     const box = boxOf(item);
-    const row = rows.find((entry) => sameBand(box, entry));
-    if (row) {
-      row.items.push(item);
-      row.top = Math.min(row.top, box.y);
-      row.bottom = Math.max(row.bottom, box.y + box.h);
+    const start = axis === 'x' ? box.x : box.y;
+    const end = start + (axis === 'x' ? box.w : box.h);
+    const band = bands.find((entry) => sameSpan(box, entry, axis));
+    if (band) {
+      band.items.push(item);
+      band.start = Math.min(band.start, start);
+      band.end = Math.max(band.end, end);
     } else {
-      rows.push({ top: box.y, bottom: box.y + box.h, items: [item] });
+      bands.push({ start, end, items: [item] });
     }
   }
-  for (const row of rows) row.items.sort((a, b) => boxOf(a).x - boxOf(b).x);
-  return rows;
+  for (const band of bands) {
+    band.items.sort((a, b) => {
+      const left = boxOf(a);
+      const right = boxOf(b);
+      return axis === 'x' ? (left.y - right.y) : (left.x - right.x);
+    });
+  }
+  return bands;
 }
 
 function pumlPaint(colors, dashed) {
@@ -479,7 +624,14 @@ function emitPlant(parentId, indent, lines, ctx) {
       items.push(node);
     }
   }
-  items.sort((a, b) => boxOf(a).y - boxOf(b).y || boxOf(a).x - boxOf(b).x);
+  const flow = ctx.flow || 'LR';
+  items.sort((a, b) => {
+    const left = boxOf(a);
+    const right = boxOf(b);
+    return flow === 'LR'
+      ? (left.x - right.x || left.y - right.y)
+      : (left.y - right.y || left.x - right.x);
+  });
   const pad = '  '.repeat(indent);
   for (const item of items) {
     if (item.synthetic) {
@@ -506,23 +658,24 @@ function emitPlant(parentId, indent, lines, ctx) {
     emitPlant(item.id, indent + 1, lines, ctx);
     lines.push(`${pad}}`);
   }
-  const rows = bandRows(items);
-  for (const row of rows) {
-    if (row.items.length < 2) continue;
+  const bands = layoutBands(items, flow === 'LR' ? 'x' : 'y');
+  const hidden = flow === 'LR' ? 'right' : 'down';
+  for (const band of bands) {
+    if (band.items.length < 2) continue;
     lines.push(`${pad}together {`);
-    for (let index = 0; index < row.items.length - 1; index += 1) {
-      const left = row.items[index].synthetic ? row.items[index].pid : ctx.ids.get(row.items[index].id);
-      const right = row.items[index + 1].synthetic ? row.items[index + 1].pid : ctx.ids.get(row.items[index + 1].id);
+    for (let index = 0; index < band.items.length - 1; index += 1) {
+      const left = band.items[index].synthetic ? band.items[index].pid : ctx.ids.get(band.items[index].id);
+      const right = band.items[index + 1].synthetic ? band.items[index + 1].pid : ctx.ids.get(band.items[index + 1].id);
       lines.push(`${pad}  ${left} -[hidden]- ${right}`);
     }
     lines.push(`${pad}}`);
   }
-  for (let index = 0; index < rows.length - 1; index += 1) {
-    const above = rows[index].items[0];
-    const below = rows[index + 1].items[0];
-    const from = above.synthetic ? above.pid : ctx.ids.get(above.id);
-    const to = below.synthetic ? below.pid : ctx.ids.get(below.id);
-    lines.push(`${pad}${from} -[hidden]down- ${to}`);
+  for (let index = 0; index < bands.length - 1; index += 1) {
+    const first = bands[index].items[0];
+    const next = bands[index + 1].items[0];
+    const from = first.synthetic ? first.pid : ctx.ids.get(first.id);
+    const to = next.synthetic ? next.pid : ctx.ids.get(next.id);
+    lines.push(`${pad}${from} -[hidden]${hidden}- ${to}`);
   }
 }
 
@@ -547,6 +700,7 @@ export function toPlantUml(doc) {
     }
     ends.set(node.id, { a: `n${serial++}`, b: `n${serial++}`, points });
   }
+  const flow = layoutFlow(nodes, edges);
   const ctx = {
     nodes,
     ids,
@@ -554,10 +708,11 @@ export function toPlantUml(doc) {
     parents: parentsOf(nodes),
     settings,
     theme,
+    flow,
   };
   const lines = [
     '@startuml',
-    'top to bottom direction',
+    flow === 'TB' ? 'top to bottom direction' : 'left to right direction',
     'skinparam shadowing false',
     'skinparam roundcorner 0',
     'skinparam linetype polyline',

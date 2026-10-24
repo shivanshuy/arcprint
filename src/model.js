@@ -160,6 +160,7 @@ export function normalizeProject(raw) {
     date: sheet.date || today(),
     nodes: Array.isArray(sheet.nodes) ? sheet.nodes.map(normalizeNode) : [],
     edges: Array.isArray(sheet.edges) ? sheet.edges.map(normalizeEdge) : [],
+    ...(normalizeSource(sheet.source) ? { source: normalizeSource(sheet.source) } : {}),
   }));
   return {
     id: raw.id || uid(),
@@ -172,6 +173,14 @@ export function normalizeProject(raw) {
     active: sheets.some((s) => s.id === raw.active) ? raw.active : sheets[0].id,
     updated: raw.updated || Date.now(),
   };
+}
+
+function normalizeSource(source) {
+  if (!source || typeof source !== 'object') return undefined;
+  const kind = source.kind === 'plantuml' ? 'plantuml' : source.kind === 'mermaid' ? 'mermaid' : '';
+  const text = String(source.text || '');
+  if (!kind || !text.trim()) return undefined;
+  return { kind, text };
 }
 
 function normalizeNode(node) {

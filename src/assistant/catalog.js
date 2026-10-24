@@ -1,7 +1,7 @@
 import { SYMBOLS } from '../library.js';
 import { PACKS } from '../packs.js';
 
-export const CAPABILITIES = 'I can change the theme, stencil, grid, snap, dims, lettering, and connectors, switch tools and sheets, edit the selection, place a shape, add a template, or export PNG, SVG, PDF, JSON, Mermaid, and PlantUML. Ask for one of those.';
+export const CAPABILITIES = 'I can change the theme, stencil, grid, snap, dims, lettering, and connectors, switch tools and sheets, edit the selection, place a shape, add a template, open JSON, Mermaid, or PlantUML, or export PNG, SVG, PDF, JSON, Mermaid, and PlantUML. Ask for one of those.';
 
 function action(id, title, phrases, done, run, extra = {}) {
   return { id, kind: 'action', title, phrases, done, run, confirm: Boolean(extra.confirm), confirmText: extra.confirmText || '' };
@@ -187,7 +187,13 @@ export const CARDS = [
     'open a project file',
     'import a json project',
     'load a project from disk',
-  ], 'Choose an Arcprint JSON file.', (api) => api.openFile()),
+    'import mermaid',
+    'open a mermaid file',
+    'import plantuml',
+    'open a plantuml file',
+    'import a puml diagram',
+    'open markdown diagrams',
+  ], 'Choose JSON, Mermaid, PlantUML, or markdown.', (api) => api.openFile()),
 
   action('sheet.add', 'Add a sheet', [
     'add a blank sheet',
@@ -243,13 +249,13 @@ export const CARDS = [
     'export mermaid',
     'download a mermaid diagram',
     'save the sheet as mermaid',
-  ], 'Exported Mermaid.', (api) => api.exportMermaid()),
+  ], 'Opened the Mermaid preview.', (api) => api.exportMermaid()),
   action('export.plantuml', 'Export PlantUML', [
     'export plantuml',
     'download a plantuml diagram',
     'save the sheet as plantuml',
     'export uml',
-  ], 'Exported PlantUML.', (api) => api.exportPlant()),
+  ], 'Opened the PlantUML preview.', (api) => api.exportPlant()),
 
   action('template.three', 'Three-tier template', [
     'add the three tier web template',

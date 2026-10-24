@@ -1,6 +1,8 @@
 import { LIBRARIES, TEMPLATES, groupsFor, symbolById, symbolsIn } from './library.js';
 import { LETTERS } from './model.js';
 import { ShapeArt, ToolGlyph } from './glyphs.jsx';
+import MermaidExport from './MermaidExport.jsx';
+import PlantUmlExport from './PlantUmlExport.jsx';
 
 const SWATCHES = ['#f4f1ea', '#1c1915', '#c23b22', '#d97706', '#2f6f4e', '#1d4e89', '#6d28d9'];
 
@@ -123,15 +125,15 @@ export default function Chrome(props) {
           <div className="group">
             <button className="btn" onClick={() => setPanel(panel === 'projects' ? null : 'projects')}>Projects</button>
             <button className="btn" onClick={() => setPanel(panel === 'new' ? null : 'new')}>New</button>
-            <button className="btn" onClick={onOpenClick}>Open</button>
+            <button className="btn" title="Open JSON, Mermaid, PlantUML, markdown, or text" onClick={onOpenClick}>Open</button>
             <button className="btn" onClick={() => setPanel(panel === 'share' ? null : 'share')}>Share</button>
             <span className="group-label split">Export</span>
             <button className="btn" onClick={props.onPng}>PNG</button>
             <button className="btn" onClick={props.onSvg}>SVG</button>
             <button className="btn" onClick={props.onPdf}>PDF</button>
             <button className="btn" onClick={props.onJson}>JSON</button>
-            <button className="btn" title="Export Mermaid" onClick={props.onMermaid}>Mermaid</button>
-            <button className="btn" title="Export PlantUML" onClick={props.onPlant}>PlantUML</button>
+            <button className="btn" title="Preview and export Mermaid" onClick={props.onMermaid}>Mermaid</button>
+            <button className="btn" title="Preview and export PlantUML" onClick={props.onPlant}>PlantUML</button>
           </div>
           <div className="group">
             <button className="btn" onClick={() => setPanel(panel === 'setup' ? null : 'setup')}>Setup</button>
@@ -190,25 +192,6 @@ export default function Chrome(props) {
             onPin={onTogglePin}
           />
         ))}
-        <label className="samples">
-          <span className="caption">Samples</span>
-          <select
-            aria-label="Sample diagrams"
-            defaultValue=""
-            onChange={(event) => {
-              const id = event.target.value;
-              event.target.value = '';
-              if (id) onTemplate(id);
-            }}
-          >
-            <option value="">Choose</option>
-            {TEMPLATES.map((template) => (
-              <option key={template.id} value={template.id} title={template.description}>
-                {template.name}
-              </option>
-            ))}
-          </select>
-        </label>
       </aside>
 
       {panel === 'library' && (
@@ -261,18 +244,32 @@ export default function Chrome(props) {
           <div className="new-body">
             <button className="act" onClick={onNewProject}>Blank project</button>
             <button className="act" onClick={props.onBlankSheet}>Blank sheet</button>
-            <div className="caption">Templates</div>
-            <div className="templates">
-              {TEMPLATES.filter((template) => (template.library || 'technical') === library).map((template) => (
-                <button key={template.id} className="template" onClick={() => onTemplate(template.id)}>
-                  <TemplatePreview template={template} theme={theme} />
-                  <span className="tname">{template.name}</span>
-                  <span className="tdesc">{template.description}</span>
-                </button>
-              ))}
-            </div>
+            {LIBRARIES.map((item) => {
+              const templates = TEMPLATES.filter((template) => (template.library || 'technical') === item.id);
+              if (!templates.length) return null;
+              return (
+                <div key={item.id}>
+                  <div className="caption">{item.label} templates</div>
+                  <div className="templates">
+                    {templates.map((template) => (
+                      <button key={template.id} className="template" onClick={() => onTemplate(template.id)}>
+                        <TemplatePreview template={template} theme={theme} />
+                        <span className="tname">{template.name}</span>
+                        <span className="tdesc">{template.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
+      )}
+      {panel === 'mermaid' && (
+        <MermaidExport doc={doc} onClose={() => setPanel(null)} onCopied={props.onCopied} />
+      )}
+      {panel === 'plantuml' && (
+        <PlantUmlExport doc={doc} onClose={() => setPanel(null)} onCopied={props.onCopied} />
       )}
       {panel === 'share' && (
         <section className="panel float share-panel">
