@@ -34,6 +34,12 @@ test('PlantUML preview uses the official MIT browser engine', () => {
   assert.ok(plantuml.exports['./themes.js'], 'themes must ship with the package');
 });
 
+test('mermaid preview imports the dist build Vite can resolve', () => {
+  const src = readFileSync(join(root, 'src', 'mermaidView.js'), 'utf8');
+  assert.match(src, /mermaid\/dist\/mermaid\.core\.mjs/);
+  assert.doesNotMatch(src, /import\('mermaid'\)/);
+});
+
 test('mermaid 12 ships loaders for complex diagram kinds', () => {
   const src = readFileSync(join(root, 'node_modules', 'mermaid', 'dist', 'mermaid.core.mjs'), 'utf8');
   const needed = [

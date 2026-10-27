@@ -11,6 +11,10 @@ export default defineConfig({
   resolve: {
     alias: [
       {
+        find: /^mermaid$/,
+        replacement: path.resolve(root, 'node_modules/mermaid/dist/mermaid.core.mjs'),
+      },
+      {
         find: /^onnxruntime-web\/webgpu$/,
         replacement: path.resolve(root, 'node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/ort.webgpu.bundle.min.mjs'),
       },

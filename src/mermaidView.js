@@ -2,7 +2,8 @@ let mermaid;
 
 async function loadMermaid() {
   if (mermaid) return mermaid;
-  const mod = await import('mermaid');
+  // The package root has no main field Vite can scan. Import the published build directly.
+  const mod = await import('mermaid/dist/mermaid.core.mjs');
   mermaid = mod.default;
   mermaid.initialize({
     startOnLoad: false,
